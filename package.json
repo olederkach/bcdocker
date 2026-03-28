@@ -1,0 +1,64 @@
+{
+  "name": "bcdocker",
+  "version": "1.0.2",
+  "description": "Node.js MCP server and CLI that drive the BCDocker Toolkit PowerShell module — for AI assistants and scripts.",
+  "type": "module",
+  "bin": {
+    "bcd": "dist/cli-main.js"
+  },
+  "main": "./dist/server.js",
+  "files": [
+    "dist/*.js",
+    "dist/*.d.ts",
+    "ps",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "cli": "node dist/cli.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "business-central",
+    "dynamics-365",
+    "docker",
+    "bc",
+    "al",
+    "mcp",
+    "model-context-protocol",
+    "bccontainerhelper",
+    "devops",
+    "cli"
+  ],
+  "author": "olederkach",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/olederkach/bcdocker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/olederkach/bcdocker/issues"
+  },
+  "homepage": "https://github.com/olederkach/bcdocker#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "os": [
+    "win32"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "commander": "^13.0.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
