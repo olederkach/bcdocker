@@ -1,13 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import * as handlers from "./server-handlers.js";
+import { VERSION } from "./version.js";
 
 export const server = new McpServer({
   name: "bcd",
-  version: "1.0.2",
+  version: VERSION,
 });
 
 // ── Container Tools ──────────────────────────────────────
@@ -31,7 +30,8 @@ server.tool(
   "Create a new Business Central Docker container with test toolkit. Long-running (5-30 min).",
   {
     containerName: z.string().default("bcsandbox").describe("Docker container name"),
-    version: z.string().default("sandbox").describe("BC version: 'sandbox', 'onprem', or specific like '26.0'"),
+    type: z.enum(["sandbox", "onprem"]).default("sandbox").describe("BC artifact type"),
+    bcVersion: z.string().default("").describe("Specific BC version like '26.0' or '28.0'. Empty = latest for the selected type."),
     country: z.string().default("us").describe("Localization: us, w1, gb, nl, dk, de, etc."),
     userName: z.string().default("admin").describe("Admin username"),
     password: z.string().default("P@ssw0rd!").describe("Admin password"),
@@ -169,15 +169,4 @@ server.tool(
 export async function startMcpServer(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-}
-
-const isMainModule =
-  process.argv[1] &&
-  resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1]);
-
-if (isMainModule) {
-  startMcpServer().catch((err) => {
-    console.error("MCP server failed:", err);
-    process.exit(1);
-  });
 }

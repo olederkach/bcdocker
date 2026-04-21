@@ -34,16 +34,23 @@ describe("MCP tool handlers", () => {
     expect(r.content[0].text).toBe("No containers found.");
   });
 
-  it("handleContainerInfo uses Get-BCDockerWebClientUrl and containerOrImageName", async () => {
+  it("handleContainerInfo binds container name via single-quoted PS variable (injection-safe)", async () => {
     await handlers.handleContainerInfo({ containerName: "bc1" });
-    expect(runPs.mock.calls[0][0]).toContain("Get-BCDockerWebClientUrl");
-    expect(runPs.mock.calls[0][0]).toContain("containerOrImageName 'bc1'");
+    const script = runPs.mock.calls[0][0];
+    expect(script).toContain("Get-BCDockerWebClientUrl");
+    // Container name is assigned to a PS variable once, then referenced as $name.
+    // This prevents user input from landing inside a double-quoted PS string
+    // where $()/backtick metacharacters would be evaluated.
+    expect(script).toContain("$name = 'bc1'");
+    expect(script).toContain("Get-BcContainerNavVersion -containerOrImageName $name");
+    expect(script).not.toMatch(/Write-Output\s+"[^"]*bc1[^"]*"/);
   });
 
   it("handleCreateContainer passes New-BCDContainer params", async () => {
     await handlers.handleCreateContainer({
       containerName: "n",
-      version: "sandbox",
+      type: "sandbox",
+      bcVersion: "28.0",
       country: "us",
       userName: "u",
       password: "p",
@@ -54,6 +61,8 @@ describe("MCP tool handlers", () => {
       licenseFile: "C:\\a.flf",
     });
     expect(runPs.mock.calls[0][0]).toContain("New-BCDContainer");
+    expect(runPs.mock.calls[0][0]).toContain("-Type 'sandbox'");
+    expect(runPs.mock.calls[0][0]).toContain("-BcVersion '28.0'");
     expect(runPs.mock.calls[0][0]).toContain("-BypassCDN");
     expect(runPs.mock.calls[0][0]).toContain("-LicenseFile 'C:\\a.flf'");
     expect(runPs.mock.calls[0][1]).toBe(1_800_000);
@@ -62,7 +71,8 @@ describe("MCP tool handlers", () => {
   it("handleCreateContainer omits CDN and license when not set", async () => {
     await handlers.handleCreateContainer({
       containerName: "n2",
-      version: "onprem",
+      type: "onprem",
+      bcVersion: "",
       country: "w1",
       userName: "u",
       password: "p",
@@ -81,7 +91,8 @@ describe("MCP tool handlers", () => {
   it("handleCreateContainer full toolkit uses TestLibrariesOnly $false", async () => {
     await handlers.handleCreateContainer({
       containerName: "n3",
-      version: "sandbox",
+      type: "sandbox",
+      bcVersion: "",
       country: "us",
       userName: "u",
       password: "p",
@@ -97,7 +108,8 @@ describe("MCP tool handlers", () => {
     runPs.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
     const r = await handlers.handleCreateContainer({
       containerName: "n",
-      version: "sandbox",
+      type: "sandbox",
+      bcVersion: "",
       country: "us",
       userName: "u",
       password: "p",
@@ -107,6 +119,29 @@ describe("MCP tool handlers", () => {
       bypassCDN: false,
     });
     expect(r.content[0].text).toBe("Container creation complete.");
+  });
+
+  it("handleCreateContainer surfaces stderr and exit code on PS failure", async () => {
+    runPs.mockResolvedValueOnce({
+      stdout: "",
+      stderr: "BcContainerHelper: cannot reach artifact server",
+      exitCode: 1,
+    });
+    const r = await handlers.handleCreateContainer({
+      containerName: "n",
+      type: "sandbox",
+      bcVersion: "28.0",
+      country: "us",
+      userName: "u",
+      password: "p",
+      memoryLimit: "8G",
+      isolation: "hyperv",
+      testToolkit: "none",
+      bypassCDN: true,
+    });
+    expect(r.content[0].text).toContain("Failed:");
+    expect(r.content[0].text).toContain("cannot reach artifact server");
+    expect(r.content[0].text).toContain("[exit code 1]");
   });
 
   it("handleRemoveContainer calls Remove-BCDContainer", async () => {

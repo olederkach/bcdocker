@@ -1,7 +1,20 @@
-import { runPowerShell, runRawPowerShell, psEscape } from "./executor.js";
+import { runPowerShell, runRawPowerShell, psEscape, type ExecResult } from "./executor.js";
 
 function mcpText(text: string): { content: [{ type: "text"; text: string }] } {
   return { content: [{ type: "text" as const, text }] };
+}
+
+// Surfaces stderr or non-zero exit codes to the MCP client so a call that
+// silently failed in PowerShell doesn't return a confident success message.
+function mcpResult(result: ExecResult, success: string) {
+  if (result.exitCode !== 0 || (!result.stdout && result.stderr)) {
+    const parts = [];
+    if (result.stdout) parts.push(result.stdout);
+    if (result.stderr) parts.push(`[stderr] ${result.stderr}`);
+    parts.push(`[exit code ${result.exitCode}]`);
+    return mcpText(`Failed:\n${parts.join("\n")}`);
+  }
+  return mcpText(result.stdout || success);
 }
 
 export async function handleListContainers() {
@@ -17,29 +30,31 @@ export async function handleListContainers() {
         }
       }
     `);
-  return mcpText(result.stdout || "No containers found.");
+  return mcpResult(result, "No containers found.");
 }
 
 export async function handleContainerInfo({ containerName }: { containerName: string }) {
   const cn = psEscape(containerName);
   const result = await runPowerShell(`
       Import-Module BcContainerHelper -DisableNameChecking -ErrorAction Stop
-      $bcVersion = Get-BcContainerNavVersion -containerOrImageName '${cn}'
-      $webUrl = Get-BCDockerWebClientUrl -ContainerName '${cn}' -UseHttps:$false
-      $status = docker inspect '${cn}' --format '{{.State.Status}}' 2>$null
-      Write-Output "Container  : ${cn}"
+      $name = '${cn}'
+      $bcVersion = Get-BcContainerNavVersion -containerOrImageName $name
+      $webUrl = Get-BCDockerWebClientUrl -ContainerName $name -UseHttps:$false
+      $status = docker inspect $name --format '{{.State.Status}}' 2>$null
+      Write-Output "Container  : $name"
       Write-Output "Status     : $status"
       Write-Output "BC Version : $bcVersion"
       Write-Output "Web Client : $webUrl"
-      Write-Output "OData/API  : http://${cn}:7048/BC/api"
-      Write-Output "Dev Service: http://${cn}:7049/BC"
+      Write-Output ("OData/API  : http://" + $name + ":7048/BC/api")
+      Write-Output ("Dev Service: http://" + $name + ":7049/BC")
     `);
-  return mcpText(result.stdout);
+  return mcpResult(result, "");
 }
 
 export async function handleCreateContainer({
   containerName,
-  version,
+  type,
+  bcVersion,
   country,
   userName,
   password,
@@ -50,7 +65,8 @@ export async function handleCreateContainer({
   licenseFile,
 }: {
   containerName: string;
-  version: string;
+  type: "sandbox" | "onprem";
+  bcVersion: string;
   country: string;
   userName: string;
   password: string;
@@ -69,7 +85,8 @@ export async function handleCreateContainer({
     `
       New-BCDContainer \`
         -ContainerName '${psEscape(containerName)}' \`
-        -Version '${psEscape(version)}' \`
+        -Type '${psEscape(type)}' \`
+        -BcVersion '${psEscape(bcVersion)}' \`
         -Country '${psEscape(country)}' \`
         -UserName '${psEscape(userName)}' \`
         -Password '${psEscape(password)}' \`
@@ -81,27 +98,27 @@ export async function handleCreateContainer({
     `,
     1_800_000
   );
-  return mcpText(result.stdout || "Container creation complete.");
+  return mcpResult(result, "Container creation complete.");
 }
 
 export async function handleRemoveContainer({ containerName }: { containerName: string }) {
   const result = await runPowerShell(`Remove-BCDContainer -ContainerName '${psEscape(containerName)}'`);
-  return mcpText(result.stdout || `Container '${psEscape(containerName)}' removed.`);
+  return mcpResult(result, `Container '${containerName}' removed.`);
 }
 
 export async function handleStartContainer({ containerName }: { containerName: string }) {
   const result = await runPowerShell(`Start-BCDContainer -ContainerName '${psEscape(containerName)}'`);
-  return mcpText(result.stdout || `Container '${psEscape(containerName)}' started.`);
+  return mcpResult(result, `Container '${containerName}' started.`);
 }
 
 export async function handleStopContainer({ containerName }: { containerName: string }) {
   const result = await runPowerShell(`Stop-BCDContainer -ContainerName '${psEscape(containerName)}'`);
-  return mcpText(result.stdout || `Container '${psEscape(containerName)}' stopped.`);
+  return mcpResult(result, `Container '${containerName}' stopped.`);
 }
 
 export async function handleRestartContainer({ containerName }: { containerName: string }) {
   const result = await runPowerShell(`Restart-BCDContainer -ContainerName '${psEscape(containerName)}'`);
-  return mcpText(result.stdout || `Container '${psEscape(containerName)}' restarted.`);
+  return mcpResult(result, `Container '${containerName}' restarted.`);
 }
 
 export async function handleOpenWebclient({ containerName }: { containerName: string }) {
@@ -109,7 +126,7 @@ export async function handleOpenWebclient({ containerName }: { containerName: st
       $url = Get-BCDockerWebClientUrl -ContainerName '${psEscape(containerName)}' -UseHttps:$false
       Write-Output $url
     `);
-  return mcpText(result.stdout || "Could not resolve URL.");
+  return mcpResult(result, "Could not resolve URL.");
 }
 
 export async function handleListApps({
@@ -129,7 +146,7 @@ export async function handleListApps({
         Sort-Object Publisher, Name |
         Format-Table -AutoSize | Out-String -Width 200
     `);
-  return mcpText(result.stdout || "No apps found.");
+  return mcpResult(result, "No apps found.");
 }
 
 export async function handleInstallApp({
@@ -147,7 +164,7 @@ export async function handleInstallApp({
       $cred = Get-BCCredential -UserName '${psEscape(userName)}' -Password '${psEscape(password)}'
       Install-BCDApp -ContainerName '${psEscape(containerName)}' -AppFile '${psEscape(appFile)}' -Credential $cred
     `);
-  return mcpText(result.stdout || "App installed.");
+  return mcpResult(result, "App installed.");
 }
 
 export async function handleUninstallApp({
@@ -164,18 +181,21 @@ export async function handleUninstallApp({
   const ap = psEscape(appPublisher);
   const result = await runRawPowerShell(`
       Import-Module BcContainerHelper -DisableNameChecking -ErrorAction Stop
-      $allApps = Get-BcContainerAppInfo -containerName '${cn}' -tenant default -tenantSpecificProperties
-      $sorted = Get-BcContainerAppInfo -containerName '${cn}' -tenant default -tenantSpecificProperties -sort DependenciesLast
-      $target = $allApps | Where-Object { $_.Name -eq '${an}' -and $_.Publisher -eq '${ap}' }
-      if (-not $target) { Write-Output "App '${an}' by '${ap}' not found."; exit }
+      $containerName = '${cn}'
+      $appName = '${an}'
+      $appPublisher = '${ap}'
+      $allApps = Get-BcContainerAppInfo -containerName $containerName -tenant default -tenantSpecificProperties
+      $sorted = Get-BcContainerAppInfo -containerName $containerName -tenant default -tenantSpecificProperties -sort DependenciesLast
+      $target = $allApps | Where-Object { $_.Name -eq $appName -and $_.Publisher -eq $appPublisher }
+      if (-not $target) { Write-Output "App '$appName' by '$appPublisher' not found."; exit }
       foreach ($app in $sorted) {
-        if ($app.Name -eq '${an}' -and $app.Publisher -eq '${ap}' -and $app.IsInstalled) {
-          UnInstall-BcContainerApp -name $app.Name -containerName '${cn}' -publisher $app.Publisher -version $app.Version -force
+        if ($app.Name -eq $appName -and $app.Publisher -eq $appPublisher -and $app.IsInstalled) {
+          UnInstall-BcContainerApp -name $app.Name -containerName $containerName -publisher $app.Publisher -version $app.Version -force
           Write-Output "Uninstalled: $($app.Name) v$($app.Version)"
         }
       }
     `);
-  return mcpText(result.stdout || "Uninstall complete.");
+  return mcpResult(result, "Uninstall complete.");
 }
 
 export async function handlePublishProject({
@@ -196,7 +216,7 @@ export async function handlePublishProject({
     `,
     300_000
   );
-  return mcpText(result.stdout || "Project compiled and published.");
+  return mcpResult(result, "Project compiled and published.");
 }
 
 export async function handleImportTestToolkit({
@@ -218,7 +238,7 @@ export async function handleImportTestToolkit({
     `,
     300_000
   );
-  return mcpText(result.stdout || "Test toolkit imported.");
+  return mcpResult(result, "Test toolkit imported.");
 }
 
 export async function handleImportLicense({
@@ -229,7 +249,7 @@ export async function handleImportLicense({
   licenseFile: string;
 }) {
   const result = await runPowerShell(`Import-BCDLicense -ContainerName '${psEscape(containerName)}' -LicenseFile '${psEscape(licenseFile)}'`);
-  return mcpText(result.stdout || "License imported.");
+  return mcpResult(result, "License imported.");
 }
 
 export async function handleRunTests({
@@ -255,5 +275,5 @@ export async function handleRunTests({
   if (appProjectFolder) params.push(`-AppProjectFolder '${psEscape(appProjectFolder)}'`);
 
   const result = await runPowerShell(`Invoke-BCDTests ${params.join(" ")}`, 600_000);
-  return mcpText(result.stdout || "Test run complete.");
+  return mcpResult(result, "Test run complete.");
 }

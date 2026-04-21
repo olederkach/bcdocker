@@ -52,15 +52,20 @@ describe("bcd CLI", () => {
       "create",
       "-n",
       "mybc",
-      "-v",
+      "--type",
       "onprem",
+      "-v",
+      "26.0",
       "--bypass-cdn",
       "-l",
       "C:\\lic.flf",
     ]);
-    expect(runPs.mock.calls[0][0]).toContain("New-BCDContainer");
-    expect(runPs.mock.calls[0][0]).toContain("-BypassCDN");
-    expect(runPs.mock.calls[0][0]).toContain("-LicenseFile 'C:\\lic.flf'");
+    const script = runPs.mock.calls[0][0];
+    expect(script).toContain("New-BCDContainer");
+    expect(script).toContain("-Type 'onprem'");
+    expect(script).toContain("-BcVersion '26.0'");
+    expect(script).toContain("-BypassCDN");
+    expect(script).toContain("-LicenseFile 'C:\\lic.flf'");
   });
 
   it("create omits bypass and license by default", async () => {
@@ -76,14 +81,15 @@ describe("bcd CLI", () => {
     runPs.mockResolvedValueOnce({ stdout: "out", stderr: "warn", exitCode: 0 });
     await createCliProgram().parseAsync(["node", "bcd", "create"]);
     expect(errSpy).toHaveBeenCalledWith("warn");
-    expect(logSpy).toHaveBeenCalledWith("out");
+    // In streaming mode, stdout is piped directly to process.stdout by the
+    // executor, so the CLI action does not re-log it through console.log.
+    expect(logSpy).not.toHaveBeenCalledWith("out");
   });
 
-  it("create skips stdout log when empty", async () => {
+  it("create invokes runPowerShell with stream=true", async () => {
     runPs.mockResolvedValueOnce({ stdout: "", stderr: "", exitCode: 0 });
     await createCliProgram().parseAsync(["node", "bcd", "create", "-n", "x"]);
-    const stdoutLogs = logSpy.mock.calls.map((c) => c[0]).filter((m) => m === "");
-    expect(stdoutLogs.length).toBe(0);
+    expect(runPs.mock.calls[0][2]).toBe(true);
   });
 
   it("remove calls Remove-BCDContainer", async () => {
@@ -238,9 +244,11 @@ describe("bcd CLI", () => {
     expect(logSpy).toHaveBeenCalledWith("License imported.");
   });
 
-  it("program exposes name and version", () => {
+  it("program exposes name and version", async () => {
+    const { VERSION } = await import("../version.js");
     const p = createCliProgram();
     expect(p.name()).toBe("bcd");
-    expect(p.version()).toBe("1.0.2");
+    expect(p.version()).toBe(VERSION);
+    expect(VERSION).toMatch(/^\d+\.\d+\.\d+/);
   });
 });

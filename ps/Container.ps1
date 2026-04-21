@@ -6,8 +6,11 @@ function New-BCDContainer {
     .PARAMETER ContainerName
         Name for the Docker container. Default: "bcsandbox"
 
-    .PARAMETER Version
-        BC artifact type: "sandbox", "onprem", or a specific version like "26.0". Default: "sandbox"
+    .PARAMETER Type
+        BC artifact type: "sandbox" or "onprem". Default: "sandbox"
+
+    .PARAMETER BcVersion
+        Specific BC version like "26.0" or "28.0". Empty = latest for the selected Type.
 
     .PARAMETER Country
         Localization code (us, w1, gb, nl, dk, etc.). Default: "us"
@@ -42,7 +45,9 @@ function New-BCDContainer {
     [CmdletBinding()]
     param(
         [string]$ContainerName           = "bcsandbox",
-        [string]$Version                 = "sandbox",
+        [ValidateSet("sandbox","onprem")]
+        [string]$Type                    = "sandbox",
+        [string]$BcVersion               = "",
         [string]$Country                 = "us",
         [string]$UserName                = "admin",
         [string]$Password                = "P@ssw0rd!",
@@ -88,10 +93,17 @@ function New-BCDContainer {
     Write-BCInfo "User: $($Credential.UserName)"
 
     # Step 4 — Resolve artifact URL
-    Write-BCStep "4/8" "Resolving artifacts (type=$Version, country=$Country)..."
-    $artifactUrl = Get-BcArtifactUrl -type $Version -country $Country -select Latest
+    $versionLabel = if ($BcVersion) { $BcVersion } else { 'latest' }
+    Write-BCStep "4/8" "Resolving artifacts (type=$Type, version=$versionLabel, country=$Country)..."
+    # -select Latest treats -version as a prefix filter (e.g. "28.0" matches 28.0.x.y).
+    # -select Closest would require a full 1.2.3.4 version string, which is rarely what the user has.
+    if ($BcVersion) {
+        $artifactUrl = Get-BcArtifactUrl -type $Type -version $BcVersion -country $Country -select Latest
+    } else {
+        $artifactUrl = Get-BcArtifactUrl -type $Type -country $Country -select Latest
+    }
     if (-not $artifactUrl) {
-        Write-BCError "Failed to resolve artifact URL for version='$Version', country='$Country'."
+        Write-BCError "Failed to resolve artifact URL for type='$Type', version='$versionLabel', country='$Country'."
         return
     }
     Write-BCSuccess "Resolved: $artifactUrl"

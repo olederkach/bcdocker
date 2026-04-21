@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
 import { runPowerShell, runRawPowerShell, psEscape } from "./executor.js";
+import { VERSION } from "./version.js";
+
+function parseType(value: string): "sandbox" | "onprem" {
+  if (value !== "sandbox" && value !== "onprem") {
+    throw new InvalidArgumentError("must be 'sandbox' or 'onprem'");
+  }
+  return value;
+}
 
 /** Builds the CLI (exported for tests). */
 export function createCliProgram(): Command {
@@ -10,7 +18,7 @@ export function createCliProgram(): Command {
   program
     .name("bcd")
     .description("CLI for Business Central Docker container management")
-    .version("1.0.2");
+    .version(VERSION);
 
 // ── Containers ───────────────────────────────────────────
 
@@ -40,15 +48,16 @@ program
     const c = psEscape(container);
     const { stdout } = await runPowerShell(`
       Import-Module BcContainerHelper -DisableNameChecking -ErrorAction Stop
-      $v = Get-BcContainerNavVersion -containerOrImageName '${c}'
-      $u = Get-BCDockerWebClientUrl -ContainerName '${c}' -UseHttps:$false
-      $s = docker inspect '${c}' --format '{{.State.Status}}' 2>$null
-      Write-Output "Container  : ${c}"
+      $name = '${c}'
+      $v = Get-BcContainerNavVersion -containerOrImageName $name
+      $u = Get-BCDockerWebClientUrl -ContainerName $name -UseHttps:$false
+      $s = docker inspect $name --format '{{.State.Status}}' 2>$null
+      Write-Output "Container  : $name"
       Write-Output "Status     : $s"
       Write-Output "BC Version : $v"
       Write-Output "Web Client : $u"
-      Write-Output "OData/API  : http://${c}:7048/BC/api"
-      Write-Output "Dev Service: http://${c}:7049/BC"
+      Write-Output ("OData/API  : http://" + $name + ":7048/BC/api")
+      Write-Output ("Dev Service: http://" + $name + ":7049/BC")
     `);
     console.log(stdout);
   });
@@ -57,7 +66,8 @@ program
   .command("create")
   .description("Create a new BC container")
   .option("-n, --name <name>", "Container name", "bcsandbox")
-  .option("-v, --version <version>", "BC version (sandbox, onprem, 26.0)", "sandbox")
+  .option("--type <type>", "Artifact type: sandbox or onprem", parseType, "sandbox")
+  .option("-v, --bc-version <version>", "BC version (e.g. 26.0, 28.0). Empty = latest", "")
   .option("-c, --country <code>", "Country code (us, w1, gb, nl)", "us")
   .option("-u, --user <username>", "Admin username", "admin")
   .option("-p, --password <password>", "Admin password", "P@ssw0rd!")
@@ -71,15 +81,17 @@ program
     const libOnly = opts.toolkit === "libraries" ? "$true" : "$false";
     const cdn = opts.bypassCdn ? "-BypassCDN" : "";
     const lic = opts.license ? `-LicenseFile '${psEscape(opts.license)}'` : "";
+    const versionLabel = opts.bcVersion || "latest";
 
     console.log(`Creating container '${opts.name}'...`);
-    console.log(`  Version: ${opts.version}, Country: ${opts.country}, Toolkit: ${opts.toolkit}`);
+    console.log(`  Type: ${opts.type}, Version: ${versionLabel}, Country: ${opts.country}, Toolkit: ${opts.toolkit}`);
     console.log(`  This may take 5-30 minutes.\n`);
 
-    const { stdout, stderr } = await runPowerShell(`
+    const { stderr } = await runPowerShell(`
       New-BCDContainer \`
         -ContainerName '${psEscape(opts.name)}' \`
-        -Version '${psEscape(opts.version)}' \`
+        -Type '${psEscape(opts.type)}' \`
+        -BcVersion '${psEscape(opts.bcVersion)}' \`
         -Country '${psEscape(opts.country)}' \`
         -UserName '${psEscape(opts.user)}' \`
         -Password '${psEscape(opts.password)}' \`
@@ -88,9 +100,8 @@ program
         -IncludeTestToolkit ${includeToolkit} \`
         -TestLibrariesOnly ${libOnly} \`
         ${cdn} ${lic}
-    `, 1_800_000);
+    `, 1_800_000, true);
 
-    if (stdout) console.log(stdout);
     if (stderr) console.error(stderr);
   });
 
@@ -176,8 +187,8 @@ program
     const { stdout } = await runPowerShell(`
       $cred = Get-BCCredential -UserName '${psEscape(opts.user)}' -Password '${psEscape(opts.password)}'
       Install-BCDApp -ContainerName '${psEscape(container)}' -AppFile '${psEscape(appFile)}' -Credential $cred
-    `);
-    console.log(stdout || "App installed.");
+    `, 600_000, true);
+    if (!stdout) console.log("App installed.");
   });
 
 program
@@ -189,11 +200,14 @@ program
     const p = psEscape(publisher);
     const { stdout } = await runRawPowerShell(`
       Import-Module BcContainerHelper -DisableNameChecking -ErrorAction Stop
-      $sorted = Get-BcContainerAppInfo -containerName '${c}' -tenant default -tenantSpecificProperties -sort DependenciesLast
-      $target = $sorted | Where-Object { $_.Name -eq '${an}' -and $_.Publisher -eq '${p}' -and $_.IsInstalled }
-      if (-not $target) { Write-Output "App '${an}' by '${p}' not found or not installed."; exit }
+      $containerName = '${c}'
+      $appName = '${an}'
+      $appPublisher = '${p}'
+      $sorted = Get-BcContainerAppInfo -containerName $containerName -tenant default -tenantSpecificProperties -sort DependenciesLast
+      $target = $sorted | Where-Object { $_.Name -eq $appName -and $_.Publisher -eq $appPublisher -and $_.IsInstalled }
+      if (-not $target) { Write-Output "App '$appName' by '$appPublisher' not found or not installed."; exit }
       foreach ($app in $target) {
-        UnInstall-BcContainerApp -name $app.Name -containerName '${c}' -publisher $app.Publisher -version $app.Version -force
+        UnInstall-BcContainerApp -name $app.Name -containerName $containerName -publisher $app.Publisher -version $app.Version -force
         Write-Output "Uninstalled: $($app.Name) v$($app.Version)"
       }
     `);
@@ -209,8 +223,8 @@ program
     const { stdout } = await runPowerShell(`
       $cred = Get-BCCredential -UserName '${psEscape(opts.user)}' -Password '${psEscape(opts.password)}'
       Publish-BCDProject -ContainerName '${psEscape(container)}' -ProjectFolder '${psEscape(folder)}' -Credential $cred
-    `, 300_000);
-    console.log(stdout || "Project compiled and published.");
+    `, 300_000, true);
+    if (!stdout) console.log("Project compiled and published.");
   });
 
 // ── Tests & License ──────────────────────────────────────
@@ -234,9 +248,10 @@ program
 
     const { stdout } = await runPowerShell(
       `Invoke-BCDTests ${params.join(" ")}`,
-      600_000
+      600_000,
+      true
     );
-    console.log(stdout || "Test run complete.");
+    if (!stdout) console.log("Test run complete.");
   });
 
 program
@@ -250,8 +265,8 @@ program
     const { stdout } = await runPowerShell(`
       $cred = Get-BCCredential -UserName '${psEscape(opts.user)}' -Password '${psEscape(opts.password)}'
       Import-BCDTestToolkit -ContainerName '${psEscape(container)}' -Credential $cred -LibrariesOnly ${libOnly}
-    `, 300_000);
-    console.log(stdout || "Test toolkit imported.");
+    `, 300_000, true);
+    if (!stdout) console.log("Test toolkit imported.");
   });
 
 program
@@ -262,6 +277,17 @@ program
       `Import-BCDLicense -ContainerName '${psEscape(container)}' -LicenseFile '${psEscape(file)}'`
     );
     console.log(stdout || "License imported.");
+  });
+
+// ── MCP Server ───────────────────────────────────────────
+
+program
+  .command("mcp")
+  .description("Start the MCP server (stdio transport) for AI assistants")
+  .action(async () => {
+    // Dynamically import so the MCP SDK isn't loaded for every CLI invocation.
+    const { startMcpServer } = await import("./server.js");
+    await startMcpServer();
   });
 
   return program;

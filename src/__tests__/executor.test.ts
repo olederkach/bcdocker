@@ -86,11 +86,12 @@ describe("runPowerShell / runRawPowerShell", () => {
     expect(args?.join(" ")).toContain("Write-Output 1");
   });
 
-  it("runRawPowerShell passes script without module wrapper", async () => {
+  it("runRawPowerShell passes script without BCDocker module wrapper", async () => {
     await runRawPowerShell("Get-Date");
     const [, args] = execFile.mock.calls[0];
-    expect(args?.join(" ")).toContain("Get-Date");
-    expect(args?.join(" ")).not.toContain("Import-Module");
+    const joined = args?.join(" ") ?? "";
+    expect(joined).toContain("Get-Date");
+    expect(joined).not.toContain("BCDocker.psm1");
   });
 
   it("rejects when error and no stdout (runPowerShell)", async () => {

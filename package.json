@@ -1,6 +1,6 @@
 {
   "name": "bcdocker",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "Node.js MCP server and CLI that drive the BCDocker Toolkit PowerShell module — for AI assistants and scripts.",
   "type": "module",
   "bin": {
@@ -16,11 +16,11 @@
   ],
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/cli-main.js mcp",
     "cli": "node dist/cli.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "business-central",

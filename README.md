@@ -21,7 +21,7 @@ Zero-install -- add to your IDE config and your AI can manage BC containers dire
   "mcpServers": {
     "bcd": {
       "command": "npx",
-      "args": ["-y", "bcdocker"]
+      "args": ["-y", "bcdocker", "mcp"]
     }
   }
 }
@@ -34,7 +34,7 @@ Zero-install -- add to your IDE config and your AI can manage BC containers dire
   "mcpServers": {
     "bcd": {
       "command": "npx",
-      "args": ["-y", "bcdocker"]
+      "args": ["-y", "bcdocker", "mcp"]
     }
   }
 }
@@ -48,7 +48,7 @@ Zero-install -- add to your IDE config and your AI can manage BC containers dire
     "bcd": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "bcdocker"]
+      "args": ["-y", "bcdocker", "mcp"]
     }
   }
 }
@@ -69,7 +69,7 @@ Once configured, ask your AI assistant things like:
 ```bash
 npx bcdocker list
 npx bcdocker info bcsandbox
-npx bcdocker create --name bcsandbox --version 26.0 --country w1 --bypass-cdn
+npx bcdocker create --name bcsandbox --type sandbox --bc-version 26.0 --country w1 --bypass-cdn
 npx bcdocker start bcsandbox
 npx bcdocker stop bcsandbox
 npx bcdocker apps bcsandbox --publisher Microsoft
@@ -81,7 +81,7 @@ npx bcdocker test bcsandbox --codeunit 50100
 ```bash
 npm i -g bcdocker
 bcd list
-bcd create --name mybc --version 26.0
+bcd create --name mybc --bc-version 26.0
 bcd test mybc
 ```
 
@@ -130,6 +130,15 @@ The same 15 operations exposed as MCP tools for AI assistants:
 ## Related
 
 - **[bcdocker-toolkit](https://github.com/olederkach/bcdocker-toolkit)** -- PowerShell module and Windows UI for Business Central Docker containers
+
+## Migrating from 1.x to 2.0
+
+Breaking changes in 2.0:
+
+- **MCP server invocation**: add `"mcp"` arg to your MCP client config. The previous config `"args": ["-y", "bcdocker"]` ran the CLI (which showed help instead of starting the MCP server). New: `"args": ["-y", "bcdocker", "mcp"]`.
+- **`bcd create` flags**: the `--version` flag (which actually meant "artifact type") is replaced by `--type sandbox|onprem` and `-v, --bc-version <version>`. Previously `bcd create --version sandbox` → now `bcd create --type sandbox`. A specific BC version like `28.0` now works: `bcd create --bc-version 28.0`.
+- **MCP `create-container` schema**: the `version` field is split into `type` (enum: sandbox, onprem) and `bcVersion` (string, e.g. `"28.0"` or empty for latest).
+- **MCP tool responses**: handlers now surface stderr and non-zero exit codes as `Failed:\n...` text instead of returning the confident fallback message. AI clients will get actionable failure details instead of spurious "complete" messages.
 
 ## License
 
