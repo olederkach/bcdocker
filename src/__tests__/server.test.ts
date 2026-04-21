@@ -65,7 +65,7 @@ describe("MCP tool handlers", () => {
     expect(runPs.mock.calls[0][0]).toContain("-BcVersion '28.0'");
     expect(runPs.mock.calls[0][0]).toContain("-BypassCDN");
     expect(runPs.mock.calls[0][0]).toContain("-LicenseFile 'C:\\a.flf'");
-    expect(runPs.mock.calls[0][1]).toBe(3_600_000);
+    expect(runPs.mock.calls[0][1]).toBe(0);
   });
 
   it("handleCreateContainer omits CDN and license when not set", async () => {
@@ -208,7 +208,7 @@ describe("MCP tool handlers", () => {
       password: "p",
     });
     expect(runPs.mock.calls[0][0]).toContain("Publish-BCDProject");
-    expect(runPs.mock.calls[0][1]).toBe(300_000);
+    expect(runPs.mock.calls[0][1]).toBe(0);
   });
 
   it("handleImportTestToolkit uses Import-BCDTestToolkit", async () => {
@@ -250,7 +250,7 @@ describe("MCP tool handlers", () => {
     expect(runPs.mock.calls[0][0]).toContain("-TestCodeunitId 50100");
     expect(runPs.mock.calls[0][0]).toContain("-TestFunctionName 'TestFoo'");
     expect(runPs.mock.calls[0][0]).toContain("-AppProjectFolder 'C:\\t'");
-    expect(runPs.mock.calls[0][1]).toBe(600_000);
+    expect(runPs.mock.calls[0][1]).toBe(0);
   });
 
   it("handleRunTests minimal params only container and credential", async () => {

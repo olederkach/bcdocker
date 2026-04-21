@@ -58,23 +58,23 @@ const PS_ARGS = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", 
 // (create, publish, test) so the user sees BcContainerHelper's progress lines
 // as they arrive instead of waiting for the whole process to exit.
 //
-// Uses an AbortController for timeout (rather than spawn's built-in `timeout`
-// option) so we can distinguish timeout from clean exit and surface it as a
-// rejected promise instead of a silent exitCode-0 result.
+// timeoutMs = 0 means no timeout (user retains Ctrl+C as the escape hatch).
+// Non-zero uses an AbortController so a timeout is surfaced as a rejected
+// promise, not a silent exitCode-0 result.
 //
 // Uses `pipe()` to the parent streams so Node's built-in backpressure
 // (pause/resume on the source stream) prevents unbounded memory buffering
 // when the parent's stdout is slow or redirected into a file.
 function spawnStreaming(wrappedScript: string, timeoutMs: number): Promise<ExecResult> {
   return new Promise((resolvePromise, reject) => {
-    const controller = new AbortController();
+    const controller = timeoutMs > 0 ? new AbortController() : null;
     let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, timeoutMs);
+    const timer = timeoutMs > 0
+      ? setTimeout(() => { timedOut = true; controller!.abort(); }, timeoutMs)
+      : null;
 
-    const child = spawn(PS_EXE, [...PS_ARGS, wrappedScript], { signal: controller.signal });
+    const spawnOpts = controller ? { signal: controller.signal } : {};
+    const child = spawn(PS_EXE, [...PS_ARGS, wrappedScript], spawnOpts);
     let stdout = "";
     let stderr = "";
 
@@ -84,7 +84,7 @@ function spawnStreaming(wrappedScript: string, timeoutMs: number): Promise<ExecR
     child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
 
     child.on("error", (err) => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       if (timedOut) {
         reject(new Error(`PowerShell timed out after ${timeoutMs}ms`));
         return;
@@ -98,7 +98,7 @@ function spawnStreaming(wrappedScript: string, timeoutMs: number): Promise<ExecR
     });
 
     child.on("close", (code) => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       if (timedOut) {
         reject(new Error(`PowerShell timed out after ${timeoutMs}ms`));
         return;
@@ -114,10 +114,12 @@ function spawnStreaming(wrappedScript: string, timeoutMs: number): Promise<ExecR
 
 function execBuffered(wrappedScript: string, timeoutMs: number): Promise<ExecResult> {
   return new Promise((resolvePromise, reject) => {
+    const execOpts: { timeout?: number; maxBuffer: number } = { maxBuffer: 10 * 1024 * 1024 };
+    if (timeoutMs > 0) execOpts.timeout = timeoutMs;
     execFile(
       PS_EXE,
       [...PS_ARGS, wrappedScript],
-      { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 },
+      execOpts,
       (error, stdout, stderr) => {
         if (error && !stdout) {
           reject(new Error(stderr || error.message));
@@ -135,7 +137,7 @@ function execBuffered(wrappedScript: string, timeoutMs: number): Promise<ExecRes
 
 export function runPowerShell(
   script: string,
-  timeoutMs = 600_000,
+  timeoutMs = 0,
   stream = false
 ): Promise<ExecResult> {
   // PS single-quoted strings do not require backslash escaping, so the module
@@ -174,7 +176,7 @@ export function runPowerShell(
 
 export function runRawPowerShell(
   script: string,
-  timeoutMs = 600_000,
+  timeoutMs = 0,
   stream = false
 ): Promise<ExecResult> {
   // Probe-first strategy (see runPowerShell for full rationale). Same pattern:

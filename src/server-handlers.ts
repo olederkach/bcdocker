@@ -96,7 +96,7 @@ export async function handleCreateContainer({
         -TestLibrariesOnly ${libOnly} \`
         ${cdn} ${lic}
     `,
-    3_600_000
+    0
   );
   return mcpResult(result, "Container creation complete.");
 }
@@ -214,7 +214,7 @@ export async function handlePublishProject({
       $cred = Get-BCCredential -UserName '${psEscape(userName)}' -Password '${psEscape(password)}'
       Publish-BCDProject -ContainerName '${psEscape(containerName)}' -ProjectFolder '${psEscape(projectFolder)}' -Credential $cred
     `,
-    300_000
+    0
   );
   return mcpResult(result, "Project compiled and published.");
 }
@@ -236,7 +236,7 @@ export async function handleImportTestToolkit({
       $cred = Get-BCCredential -UserName '${psEscape(userName)}' -Password '${psEscape(password)}'
       Import-BCDTestToolkit -ContainerName '${psEscape(containerName)}' -Credential $cred -LibrariesOnly ${libPs}
     `,
-    300_000
+    0
   );
   return mcpResult(result, "Test toolkit imported.");
 }
@@ -274,6 +274,6 @@ export async function handleRunTests({
   if (testFunctionName) params.push(`-TestFunctionName '${psEscape(testFunctionName)}'`);
   if (appProjectFolder) params.push(`-AppProjectFolder '${psEscape(appProjectFolder)}'`);
 
-  const result = await runPowerShell(`Invoke-BCDTests ${params.join(" ")}`, 600_000);
+  const result = await runPowerShell(`Invoke-BCDTests ${params.join(" ")}`, 0);
   return mcpResult(result, "Test run complete.");
 }

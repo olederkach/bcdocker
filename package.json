@@ -1,6 +1,6 @@
 {
   "name": "bcdocker",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Node.js MCP server and CLI that drive the BCDocker Toolkit PowerShell module — for AI assistants and scripts.",
   "type": "module",
   "bin": {

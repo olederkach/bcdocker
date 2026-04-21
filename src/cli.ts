@@ -100,7 +100,7 @@ program
         -IncludeTestToolkit ${includeToolkit} \`
         -TestLibrariesOnly ${libOnly} \`
         ${cdn} ${lic}
-    `, 3_600_000, true);
+    `, 0, true);
 
     if (stderr) console.error(stderr);
   });
@@ -187,7 +187,7 @@ program
     const { stdout } = await runPowerShell(`
       $cred = Get-BCCredential -UserName '${psEscape(opts.user)}' -Password '${psEscape(opts.password)}'
       Install-BCDApp -ContainerName '${psEscape(container)}' -AppFile '${psEscape(appFile)}' -Credential $cred
-    `, 600_000, true);
+    `, 0, true);
     if (!stdout) console.log("App installed.");
   });
 
@@ -223,7 +223,7 @@ program
     const { stdout } = await runPowerShell(`
       $cred = Get-BCCredential -UserName '${psEscape(opts.user)}' -Password '${psEscape(opts.password)}'
       Publish-BCDProject -ContainerName '${psEscape(container)}' -ProjectFolder '${psEscape(folder)}' -Credential $cred
-    `, 300_000, true);
+    `, 0, true);
     if (!stdout) console.log("Project compiled and published.");
   });
 
@@ -248,7 +248,7 @@ program
 
     const { stdout } = await runPowerShell(
       `Invoke-BCDTests ${params.join(" ")}`,
-      600_000,
+      0,
       true
     );
     if (!stdout) console.log("Test run complete.");
@@ -265,7 +265,7 @@ program
     const { stdout } = await runPowerShell(`
       $cred = Get-BCCredential -UserName '${psEscape(opts.user)}' -Password '${psEscape(opts.password)}'
       Import-BCDTestToolkit -ContainerName '${psEscape(container)}' -Credential $cred -LibrariesOnly ${libOnly}
-    `, 300_000, true);
+    `, 0, true);
     if (!stdout) console.log("Test toolkit imported.");
   });
 
