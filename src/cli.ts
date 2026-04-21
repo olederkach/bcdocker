@@ -100,7 +100,7 @@ program
         -IncludeTestToolkit ${includeToolkit} \`
         -TestLibrariesOnly ${libOnly} \`
         ${cdn} ${lic}
-    `, 1_800_000, true);
+    `, 3_600_000, true);
 
     if (stderr) console.error(stderr);
   });

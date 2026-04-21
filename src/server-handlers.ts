@@ -96,7 +96,7 @@ export async function handleCreateContainer({
         -TestLibrariesOnly ${libOnly} \`
         ${cdn} ${lic}
     `,
-    1_800_000
+    3_600_000
   );
   return mcpResult(result, "Container creation complete.");
 }

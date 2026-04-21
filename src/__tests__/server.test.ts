@@ -65,7 +65,7 @@ describe("MCP tool handlers", () => {
     expect(runPs.mock.calls[0][0]).toContain("-BcVersion '28.0'");
     expect(runPs.mock.calls[0][0]).toContain("-BypassCDN");
     expect(runPs.mock.calls[0][0]).toContain("-LicenseFile 'C:\\a.flf'");
-    expect(runPs.mock.calls[0][1]).toBe(1_800_000);
+    expect(runPs.mock.calls[0][1]).toBe(3_600_000);
   });
 
   it("handleCreateContainer omits CDN and license when not set", async () => {
