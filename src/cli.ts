@@ -27,7 +27,7 @@ program
   .alias("ls")
   .description("List all BC containers with status")
   .action(async () => {
-    const { stdout } = await runRawPowerShell(`
+    await runRawPowerShell(`
       Import-Module BcContainerHelper -DisableNameChecking -ErrorAction Stop
       $containers = Get-BcContainers
       if ($containers.Count -eq 0) { Write-Output "No BC containers found." }
@@ -37,8 +37,7 @@ program
           Write-Output "$($name.PadRight(25)) $status"
         }
       }
-    `);
-    console.log(stdout);
+    `, 0, true);
   });
 
 program
@@ -46,7 +45,7 @@ program
   .description("Show container details: version, status, endpoints")
   .action(async (container: string) => {
     const c = psEscape(container);
-    const { stdout } = await runPowerShell(`
+    await runPowerShell(`
       Import-Module BcContainerHelper -DisableNameChecking -ErrorAction Stop
       $name = '${c}'
       $v = Get-BcContainerNavVersion -containerOrImageName $name
@@ -58,8 +57,7 @@ program
       Write-Output "Web Client : $u"
       Write-Output ("OData/API  : http://" + $name + ":7048/BC/api")
       Write-Output ("Dev Service: http://" + $name + ":7049/BC")
-    `);
-    console.log(stdout);
+    `, 0, true);
   });
 
 program
@@ -111,9 +109,11 @@ program
   .description("Remove a BC container")
   .action(async (container: string) => {
     const { stdout } = await runPowerShell(
-      `Remove-BCDContainer -ContainerName '${psEscape(container)}'`
+      `Remove-BCDContainer -ContainerName '${psEscape(container)}'`,
+      0,
+      true
     );
-    console.log(stdout || `Container '${container}' removed.`);
+    if (!stdout) console.log(`Container '${container}' removed.`);
   });
 
 program
@@ -121,9 +121,11 @@ program
   .description("Start a stopped container")
   .action(async (container: string) => {
     const { stdout } = await runPowerShell(
-      `Start-BCDContainer -ContainerName '${psEscape(container)}'`
+      `Start-BCDContainer -ContainerName '${psEscape(container)}'`,
+      0,
+      true
     );
-    console.log(stdout || `Container '${container}' started.`);
+    if (!stdout) console.log(`Container '${container}' started.`);
   });
 
 program
@@ -131,9 +133,11 @@ program
   .description("Stop a running container")
   .action(async (container: string) => {
     const { stdout } = await runPowerShell(
-      `Stop-BCDContainer -ContainerName '${psEscape(container)}'`
+      `Stop-BCDContainer -ContainerName '${psEscape(container)}'`,
+      0,
+      true
     );
-    console.log(stdout || `Container '${container}' stopped.`);
+    if (!stdout) console.log(`Container '${container}' stopped.`);
   });
 
 program
@@ -141,9 +145,11 @@ program
   .description("Restart a container")
   .action(async (container: string) => {
     const { stdout } = await runPowerShell(
-      `Restart-BCDContainer -ContainerName '${psEscape(container)}'`
+      `Restart-BCDContainer -ContainerName '${psEscape(container)}'`,
+      0,
+      true
     );
-    console.log(stdout || `Container '${container}' restarted.`);
+    if (!stdout) console.log(`Container '${container}' restarted.`);
   });
 
 program
@@ -151,9 +157,11 @@ program
   .description("Open the BC Web Client in your browser")
   .action(async (container: string) => {
     const { stdout } = await runPowerShell(
-      `Open-BCDWebClient -ContainerName '${psEscape(container)}'`
+      `Open-BCDWebClient -ContainerName '${psEscape(container)}'`,
+      0,
+      true
     );
-    console.log(stdout || "Opening web client...");
+    if (!stdout) console.log("Opening web client...");
   });
 
 // ── Apps ─────────────────────────────────────────────────
@@ -174,8 +182,8 @@ program
         Select-Object Name, Publisher, Version, IsInstalled, Scope |
         Sort-Object Publisher, Name |
         Format-Table -AutoSize | Out-String -Width 200
-    `);
-    console.log(stdout || "No apps found.");
+    `, 0, true);
+    if (!stdout) console.log("No apps found.");
   });
 
 program
@@ -198,7 +206,7 @@ program
     const c = psEscape(container);
     const an = psEscape(appName);
     const p = psEscape(publisher);
-    const { stdout } = await runRawPowerShell(`
+    await runRawPowerShell(`
       Import-Module BcContainerHelper -DisableNameChecking -ErrorAction Stop
       $containerName = '${c}'
       $appName = '${an}'
@@ -210,8 +218,7 @@ program
         UnInstall-BcContainerApp -name $app.Name -containerName $containerName -publisher $app.Publisher -version $app.Version -force
         Write-Output "Uninstalled: $($app.Name) v$($app.Version)"
       }
-    `);
-    console.log(stdout);
+    `, 0, true);
   });
 
 program
@@ -274,9 +281,11 @@ program
   .description("Import a license file into a container")
   .action(async (container: string, file: string) => {
     const { stdout } = await runPowerShell(
-      `Import-BCDLicense -ContainerName '${psEscape(container)}' -LicenseFile '${psEscape(file)}'`
+      `Import-BCDLicense -ContainerName '${psEscape(container)}' -LicenseFile '${psEscape(file)}'`,
+      0,
+      true
     );
-    console.log(stdout || "License imported.");
+    if (!stdout) console.log("License imported.");
   });
 
 // ── MCP Server ───────────────────────────────────────────
